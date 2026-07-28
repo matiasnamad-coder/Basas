@@ -184,7 +184,7 @@ class GameClient extends ChangeNotifier {
   }
 
   void startGame() => _send('start-game');
-
+  void addComputers(int targetTotal) => _send('add-computers', {'targetTotal': targetTotal});
   void bid(int value) => _send('bid', {'value': value});
 
   void playCard(GameCard card) => _send('play-card', {'card': card.toJson()});
