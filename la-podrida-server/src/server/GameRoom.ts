@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { WebSocket } from 'ws';
 
 import { placeBid } from '../engine/bidding';
+import { chooseBotBid, chooseBotCard } from '../engine/bot';
 import { advanceRound, createGameWithDealerReveal, MIN_PLAYERS } from '../engine/game';
 import { playCard, validatePlay } from '../engine/trick';
 import { GameState } from '../engine/types';
@@ -9,7 +10,6 @@ import { buildPlayerView } from '../engine/view';
 
 export const MAX_PLAYERS = 8;
 const RECONNECT_TIMEOUT_SECONDS = 60;
-// readyState === 1 significa OPEN según el estándar de WebSocket.
 const WS_OPEN = 1;
 
 type SeatStatus = 'connected' | 'reconnecting' | 'absent';
@@ -19,24 +19,18 @@ interface LobbyEntry {
   name: string;
 }
 
-/**
- * Una sala = una partida de Las Basas. El estado autoritativo del juego
- * (GameState del motor) vive únicamente en el servidor. A cada jugador le
- * llega solo su propia "vista" (buildPlayerView) — nunca las manos ajenas.
- *
- * A diferencia de la versión con Colyseus, acá el manejo de sockets,
- * reconexión y matchmaking está hecho a mano (ver GameServer.ts) porque
- * Colyseus no tiene cliente oficial para Flutter/Dart.
- */
 export class GameRoom {
   readonly id: string;
 
   private lobby: LobbyEntry[] = [];
-  private seatOrder: string[] = []; // sessionIds, fijo una vez arranca la partida
+  private seatOrder: string[] = [];
   private sockets: Map<string, WebSocket> = new Map();
   private seatStatus: Map<string, SeatStatus> = new Map();
   private reconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private gameState: GameState | null = null;
+
+  private botSeats: Set<string> = new Set();
+  private botCounter = 0;
 
   constructor(id: string = randomUUID()) {
     this.id = id;
@@ -49,8 +43,6 @@ export class GameRoom {
   get hasSpace(): boolean {
     return this.isInLobby && this.lobby.length < MAX_PLAYERS;
   }
-
-  // ---------- Entrada de jugadores ----------
 
   handleJoin(ws: WebSocket, name: string | undefined): string {
     if (!this.isInLobby) {
@@ -71,6 +63,25 @@ export class GameRoom {
     this.send(ws, 'welcome', { sessionId, roomId: this.id });
     this.broadcastLobby();
     return sessionId;
+  }
+
+  addComputerPlayers(targetTotal: number) {
+    if (!this.isInLobby) return;
+
+    const target = Math.max(this.lobby.length, Math.min(targetTotal, MAX_PLAYERS));
+
+    while (this.lobby.length < target) {
+      const sessionId = randomUUID();
+      this.botCounter += 1;
+      const name = `Computadora ${this.botCounter}`;
+
+      this.lobby.push({ sessionId, name });
+      this.seatOrder.push(sessionId);
+      this.botSeats.add(sessionId);
+      this.seatStatus.set(sessionId, 'connected');
+    }
+
+    this.broadcastLobby();
   }
 
   handleReconnect(ws: WebSocket, sessionId: string) {
@@ -104,8 +115,6 @@ export class GameRoom {
   }
 
   private handleClose(sessionId: string, ws: WebSocket) {
-    // Si ya hay un socket más nuevo para este asiento (reconexión rápida),
-    // este cierre es del socket viejo — lo ignoramos.
     if (this.sockets.get(sessionId) !== ws) return;
 
     if (this.isInLobby) {
@@ -117,8 +126,6 @@ export class GameRoom {
       return;
     }
 
-    // Partida en curso: damos un tiempo de espera antes de dar por
-    // ausente al jugador (se cortó sin avisar).
     this.seatStatus.set(sessionId, 'reconnecting');
     this.broadcast('player-reconnecting', {
       seatId: sessionId,
@@ -140,8 +147,6 @@ export class GameRoom {
     this.tryAutoResolveCurrentTurn();
   }
 
-  // ---------- Mensajes del cliente ----------
-
   private handleMessage(sessionId: string, raw: Buffer) {
     let msg: { type: string; payload?: any };
     try {
@@ -153,6 +158,9 @@ export class GameRoom {
     switch (msg.type) {
       case 'start-game':
         this.handleStartGame(sessionId);
+        break;
+      case 'add-computers':
+        this.addComputerPlayers(Number(msg.payload?.targetTotal));
         break;
       case 'bid':
         this.handleBid(sessionId, msg.payload);
@@ -201,6 +209,7 @@ export class GameRoom {
     });
 
     this.broadcastGameState();
+    this.tryAutoResolveCurrentTurn();
   }
 
   private playerIdFor(sessionId: string): string | null {
@@ -255,10 +264,6 @@ export class GameRoom {
     }
   }
 
-  /**
-   * Lógica común después de resolverse una jugada de carta (manual o
-   * automática por ausencia).
-   */
   private afterCardPlayed() {
     if (!this.gameState) return;
     this.broadcastGameState();
@@ -275,12 +280,6 @@ export class GameRoom {
     }
   }
 
-  /**
-   * Si le toca el turno a un jugador ya marcado ausente: en fase de
-   * canto se le canta 0 automático; en fase de jugar se le juega la
-   * primera carta válida de su mano. Se encadena si el siguiente en la
-   * fila también está ausente.
-   */
   private tryAutoResolveCurrentTurn() {
     if (!this.gameState) return;
 
@@ -288,13 +287,16 @@ export class GameRoom {
     if (!currentPlayer) return;
 
     const seatId = this.seatOrder[this.gameState.currentTurnIndex];
-    if (this.seatStatus.get(seatId) !== 'absent') return;
+    const isBot = this.botSeats.has(seatId);
+    const isAbsent = this.seatStatus.get(seatId) === 'absent';
+    if (!isBot && !isAbsent) return;
 
     if (this.gameState.phase === 'bidding') {
+      const bidValue = isBot ? chooseBotBid(this.gameState, currentPlayer) : 0;
       try {
-        this.gameState = placeBid(this.gameState, currentPlayer.id, 0);
+        this.gameState = placeBid(this.gameState, currentPlayer.id, bidValue);
       } catch {
-        return; // caso límite sin regla definida (ver README) — el turno queda esperando
+        return;
       }
       this.broadcastGameState();
       this.tryAutoResolveCurrentTurn();
@@ -302,9 +304,11 @@ export class GameRoom {
     }
 
     if (this.gameState.phase === 'playing') {
-      const card = currentPlayer.hand.find(
-        (c) => validatePlay(this.gameState!, currentPlayer.id, c).valid
-      );
+      const card = isBot
+        ? chooseBotCard(this.gameState, currentPlayer)
+        : currentPlayer.hand.find(
+            (c) => validatePlay(this.gameState!, currentPlayer.id, c).valid
+          );
       if (!card) return;
 
       try {
@@ -316,8 +320,6 @@ export class GameRoom {
       this.tryAutoResolveCurrentTurn();
     }
   }
-
-  // ---------- Envío de mensajes ----------
 
   private broadcastLobby() {
     this.broadcast('lobby', {
