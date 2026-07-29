@@ -192,15 +192,35 @@ class _GameScreenState extends State<GameScreen> {
     final isYourTurn = view.isYourTurn;
 
     if (view.phase == 'bidding') {
-      return _buildBiddingControls(client, view, isYourTurn);
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildHandPreview(you),
+          _buildBiddingControls(client, view, isYourTurn),
+        ],
+      );
     }
 
     if (view.phase == 'playing') {
       return _buildHand(client, view, you, isYourTurn);
     }
 
-    // roundEnd / gameEnd: la mano ya no importa, los diálogos manejan el resto.
     return const SizedBox(height: 16);
+  }
+
+  Widget _buildHandPreview(PlayerInfo you) {
+    final hand = you.hand ?? [];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: SizedBox(
+        height: 100,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          children: hand.map((card) => PlayingCardWidget(card: card, width: 64)).toList(),
+        ),
+      ),
+    );
   }
 
   Widget _buildBiddingControls(GameClient client, PlayerView view, bool isYourTurn) {
@@ -274,7 +294,7 @@ class _GameScreenState extends State<GameScreen> {
       _showRoundEndedDialog(context, client);
     }
     if (client.view?.phase != 'roundEnd') {
-      _roundEndedShown = false; // se puede volver a mostrar en la próxima mano
+      _roundEndedShown = false;
     }
     if (client.gameEndedInfo != null && !_gameEndedShown) {
       _gameEndedShown = true;
