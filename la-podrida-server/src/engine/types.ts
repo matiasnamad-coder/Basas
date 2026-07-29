@@ -54,7 +54,7 @@ export interface Player {
   totalScore: number;      // puntaje acumulado de toda la partida
 }
 
-export type GamePhase = 'bidding' | 'playing' | 'roundEnd' | 'gameEnd';
+export type GamePhase = 'bidding' | 'playing' | 'trickEnd' | 'roundEnd' | 'gameEnd';
 
 export interface TrickPlay {
   playerId: string;
@@ -75,7 +75,8 @@ export interface GameState {
   round: RoundConfig;
   currentTrick: TrickPlay[];
   trickLeaderSuit: Suit | null;
+  trickWinnerId: string | null;
   roundNumber: number;
   roundsSchedule: number[];
   deckRanks: Rank[]; // qué rangos tiene el mazo de esta partida (fijo, según cantidad de jugadores)
-}
+  }
