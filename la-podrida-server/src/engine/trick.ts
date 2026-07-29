@@ -5,13 +5,6 @@ export interface PlayValidationResult {
   reason?: string;
 }
 
-/**
- * Valida si un jugador puede jugar esa carta:
- * - Si es el primero en jugar la baza, puede jugar cualquier carta.
- * - Si no es el primero, debe respetar el palo de salida SI TIENE cartas de
- *   ese palo. No está obligado a "matar" (jugar carta superior), solo a
- *   responder al palo.
- */
 export function validatePlay(
   state: GameState,
   playerId: string,
@@ -71,9 +64,10 @@ export function playCard(state: GameState, playerId: string, card: Card): GameSt
 }
 
 /**
- * Determina el ganador de la baza:
- * - Si alguien jugó triunfo, gana el triunfo más alto jugado.
- * - Si no hay triunfos en la baza, gana la carta más alta del palo de salida.
+ * Determina el ganador de la baza recién completada: suma la baza ganada,
+ * pero DEJA las 4 cartas en la mesa (fase 'trickEnd') para que se alcancen
+ * a ver antes de levantarlas. collectTrick() es quien realmente las limpia
+ * y le pasa el turno al ganador.
  */
 export function resolveTrick(state: GameState): GameState {
   const { currentTrick, round } = state;
@@ -90,26 +84,38 @@ export function resolveTrick(state: GameState): GameState {
       if (rankStrength(play.card.rank) > rankStrength(winner.card.rank)) {
         winner = play;
       }
-      // en caso de empate exacto (ej. J vs la carta extra "11"), gana la
-      // que se jugó primero — no cambia el ganador.
     }
-    // si play no es triunfo, winner es triunfo, o son de palos distintos
-    // sin triunfo de por medio → no cambia el ganador
   }
 
   const players = state.players.map((p) =>
     p.id === winner.playerId ? { ...p, tricksWon: p.tricksWon + 1 } : p
   );
 
-  const winnerIndex = players.findIndex((p) => p.id === winner.playerId);
-  const roundFinished = players[0].hand.length === 0;
-
   return {
     ...state,
     players,
+    phase: 'trickEnd',
+    trickWinnerId: winner.playerId,
+  };
+}
+
+/**
+ * Levanta la baza que quedó completa en la mesa (fase 'trickEnd'): limpia
+ * las cartas jugadas y le da el turno al ganador. Si ya no le quedan
+ * cartas en la mano a nadie, la mano terminó (roundEnd).
+ */
+export function collectTrick(state: GameState): GameState {
+  if (state.phase !== 'trickEnd' || state.trickWinnerId === null) return state;
+
+  const winnerIndex = state.players.findIndex((p) => p.id === state.trickWinnerId);
+  const roundFinished = state.players[0].hand.length === 0;
+
+  return {
+    ...state,
     currentTrick: [],
     trickLeaderSuit: null,
     currentTurnIndex: winnerIndex,
+    trickWinnerId: null,
     phase: roundFinished ? 'roundEnd' : 'playing',
   };
 }
