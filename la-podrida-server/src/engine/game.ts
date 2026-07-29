@@ -90,6 +90,7 @@ export function createGameWithDealerReveal(
     round: { cardsPerPlayer: roundsSchedule[0], trumpSuit: null },
     currentTrick: [],
     trickLeaderSuit: null,
+    trickWinnerId: null,
     roundNumber: 0,
     roundsSchedule,
     deckRanks,
@@ -155,4 +156,4 @@ export function advanceRound(state: GameState, rng: () => number = Math.random):
   };
 
   return startRound(preRoundState, rng);
-}
+      }
