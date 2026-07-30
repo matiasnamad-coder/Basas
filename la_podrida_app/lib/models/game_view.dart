@@ -21,7 +21,7 @@ class PlayerInfo {
   final int tricksWon;
   final int totalScore;
   final int handCount;
-  final List<GameCard>? hand; // solo viene para tu propio jugador
+  final List<GameCard>? hand;
 
   PlayerInfo({
     required this.id,
@@ -63,7 +63,7 @@ class RoundInfo {
 
 /// Tu vista personal del estado del juego: nunca incluye las manos ajenas.
 class PlayerView {
-  final String phase; // 'bidding' | 'playing' | 'roundEnd' | 'gameEnd'
+  final String phase; // 'bidding' | 'playing' | 'trickEnd' | 'roundEnd' | 'gameEnd'
   final int roundNumber;
   final List<int> roundsSchedule;
   final RoundInfo round;
@@ -71,6 +71,7 @@ class PlayerView {
   final int dealerIndex;
   final List<TrickPlay> currentTrick;
   final String? trickLeaderSuit;
+  final String? trickWinnerId;
   final String yourId;
   final List<PlayerInfo> players;
 
@@ -83,6 +84,7 @@ class PlayerView {
     required this.dealerIndex,
     required this.currentTrick,
     required this.trickLeaderSuit,
+    required this.trickWinnerId,
     required this.yourId,
     required this.players,
   });
@@ -99,6 +101,7 @@ class PlayerView {
           .map((e) => TrickPlay.fromJson(e as Map<String, dynamic>))
           .toList(),
       trickLeaderSuit: json['trickLeaderSuit'] as String?,
+      trickWinnerId: json['trickWinnerId'] as String?,
       yourId: (json['you'] as Map<String, dynamic>)['id'] as String,
       players: (json['players'] as List<dynamic>)
           .map((e) => PlayerInfo.fromJson(e as Map<String, dynamic>))
