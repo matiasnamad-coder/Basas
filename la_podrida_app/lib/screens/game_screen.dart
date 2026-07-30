@@ -61,6 +61,8 @@ class _GameScreenState extends State<GameScreen> {
         return 'Cantando bazas';
       case 'playing':
         return 'Jugando';
+      case 'trickEnd':
+        return 'Baza completa';
       case 'roundEnd':
         return 'Fin de mano';
       case 'gameEnd':
@@ -128,7 +130,9 @@ class _GameScreenState extends State<GameScreen> {
         itemCount: view.players.length,
         itemBuilder: (context, i) {
           final p = view.players[i];
-          final isTurn = i == view.currentTurnIndex;
+          final isTurn = view.phase == 'trickEnd'
+              ? p.id == view.trickWinnerId
+              : i == view.currentTurnIndex;
           final isDealer = i == view.dealerIndex;
           return Container(
             width: 130,
@@ -205,7 +209,36 @@ class _GameScreenState extends State<GameScreen> {
       return _buildHand(client, view, you, isYourTurn);
     }
 
+    if (view.phase == 'trickEnd') {
+      return _buildTrickEndControls(client, view);
+    }
+
     return const SizedBox(height: 16);
+  }
+
+  Widget _buildTrickEndControls(GameClient client, PlayerView view) {
+    final winnerName = view.players
+        .firstWhere(
+          (p) => p.id == view.trickWinnerId,
+          orElse: () => view.currentTurnPlayer,
+        )
+        .name;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Se la llevó $winnerName', style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            icon: const Icon(Icons.thumb_up_alt_outlined),
+            label: const Text('Listo'),
+            onPressed: client.collectTrick,
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildHandPreview(PlayerInfo you) {
