@@ -4,13 +4,15 @@ import type { WebSocket } from 'ws';
 import { placeBid } from '../engine/bidding';
 import { chooseBotBid, chooseBotCard } from '../engine/bot';
 import { advanceRound, createGameWithDealerReveal, MIN_PLAYERS } from '../engine/game';
-import { playCard, validatePlay } from '../engine/trick';
+import { collectTrick, playCard, validatePlay } from '../engine/trick';
 import { GameState } from '../engine/types';
 import { buildPlayerView } from '../engine/view';
 
 export const MAX_PLAYERS = 8;
 const RECONNECT_TIMEOUT_SECONDS = 60;
 const WS_OPEN = 1;
+const AUTO_MOVE_DELAY_MS = 900;
+const TRICK_COLLECT_DELAY_MS = 3000;
 
 type SeatStatus = 'connected' | 'reconnecting' | 'absent';
 
@@ -31,6 +33,8 @@ export class GameRoom {
 
   private botSeats: Set<string> = new Set();
   private botCounter = 0;
+
+  private trickCollectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(id: string = randomUUID()) {
     this.id = id;
@@ -171,6 +175,9 @@ export class GameRoom {
       case 'advance-round':
         this.handleAdvanceRound(sessionId);
         break;
+      case 'collect-trick':
+        this.collectCurrentTrick();
+        break;
     }
   }
 
@@ -268,6 +275,25 @@ export class GameRoom {
     if (!this.gameState) return;
     this.broadcastGameState();
 
+    if (this.gameState.phase === 'trickEnd') {
+      this.trickCollectTimer = setTimeout(
+        () => this.collectCurrentTrick(),
+        TRICK_COLLECT_DELAY_MS
+      );
+    }
+  }
+
+  private collectCurrentTrick() {
+    if (!this.gameState || this.gameState.phase !== 'trickEnd') return;
+
+    if (this.trickCollectTimer) {
+      clearTimeout(this.trickCollectTimer);
+      this.trickCollectTimer = null;
+    }
+
+    this.gameState = collectTrick(this.gameState);
+    this.broadcastGameState();
+
     if (this.gameState.phase === 'roundEnd') {
       this.broadcast('round-ended', {
         scores: this.gameState.players.map((p) => ({
@@ -277,11 +303,15 @@ export class GameRoom {
           tricksWon: p.tricksWon,
         })),
       });
+      return;
     }
+
+    this.tryAutoResolveCurrentTurn();
   }
 
   private tryAutoResolveCurrentTurn() {
     if (!this.gameState) return;
+    if (this.gameState.phase !== 'bidding' && this.gameState.phase !== 'playing') return;
 
     const currentPlayer = this.gameState.players[this.gameState.currentTurnIndex];
     if (!currentPlayer) return;
@@ -290,6 +320,17 @@ export class GameRoom {
     const isBot = this.botSeats.has(seatId);
     const isAbsent = this.seatStatus.get(seatId) === 'absent';
     if (!isBot && !isAbsent) return;
+
+    setTimeout(() => this.resolveAutoTurn(seatId, isBot), AUTO_MOVE_DELAY_MS);
+  }
+
+  private resolveAutoTurn(seatId: string, isBot: boolean) {
+    if (!this.gameState) return;
+
+    if (this.seatOrder[this.gameState.currentTurnIndex] !== seatId) return;
+
+    const currentPlayer = this.gameState.players[this.gameState.currentTurnIndex];
+    if (!currentPlayer) return;
 
     if (this.gameState.phase === 'bidding') {
       const bidValue = isBot ? chooseBotBid(this.gameState, currentPlayer) : 0;
@@ -362,4 +403,4 @@ export class GameRoom {
       this.send(ws, type, payload);
     }
   }
-}
+                             }
