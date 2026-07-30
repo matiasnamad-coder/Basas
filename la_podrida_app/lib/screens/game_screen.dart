@@ -46,7 +46,7 @@ class _GameScreenState extends State<GameScreen> {
               _buildRoundInfo(view),
               if (client.errorMessage != null) _buildErrorBanner(client),
               _buildScoreboard(view),
-              Expanded(child: _buildTrickArea(view)),
+              Expanded(child: _buildTableFelt(view)),
               _buildBottomControls(context, client, view),
             ],
           ),
@@ -168,9 +168,36 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  /// Mesa de casino: paño verde con marco de madera, adentro va la baza
+  /// que se está jugando.
+  Widget _buildTableFelt(PlayerView view) {
+    return Container(
+      margin: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF6B4423), width: 10),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+        gradient: const RadialGradient(
+          center: Alignment.center,
+          radius: 1.1,
+          colors: [Color(0xFF1E7A46), Color(0xFF0B4027)],
+        ),
+      ),
+      child: _buildTrickArea(view),
+    );
+  }
+
   Widget _buildTrickArea(PlayerView view) {
     if (view.currentTrick.isEmpty) {
-      return const Center(child: Text('Esperando la primera carta de la mano…'));
+      return const Center(
+        child: Text(
+          'Esperando la primera carta de la mano…',
+          style: TextStyle(color: Colors.white70),
+        ),
+      );
     }
     return Center(
       child: Wrap(
@@ -178,13 +205,10 @@ class _GameScreenState extends State<GameScreen> {
         spacing: 8,
         children: view.currentTrick.map((play) {
           final playerName = view.players.firstWhere((p) => p.id == play.playerId).name;
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(playerName, style: const TextStyle(fontSize: 12)),
-              const SizedBox(height: 4),
-              PlayingCardWidget(card: play.card, width: 48),
-            ],
+          return _DealtCard(
+            key: ValueKey('${play.playerId}-${play.card.suit}-${play.card.rank}'),
+            playerName: playerName,
+            card: play.card,
           );
         }).toList(),
       ),
@@ -409,6 +433,61 @@ class _GameScreenState extends State<GameScreen> {
             child: const Text('Salir'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Una carta jugada en la mesa: cuando aparece por primera vez (nueva
+/// key), hace una animación corta de "caída" — entra desde arriba con un
+/// leve rebote y un fade-in. Al reconstruirse con la misma key (por otros
+/// cambios de estado) no vuelve a animarse.
+class _DealtCard extends StatefulWidget {
+  final String playerName;
+  final GameCard card;
+
+  const _DealtCard({super.key, required this.playerName, required this.card});
+
+  @override
+  State<_DealtCard> createState() => _DealtCardState();
+}
+
+class _DealtCardState extends State<_DealtCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _slide = Tween<Offset>(begin: const Offset(0, -0.7), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(widget.playerName, style: const TextStyle(fontSize: 12, color: Colors.white)),
+            const SizedBox(height: 4),
+            PlayingCardWidget(card: widget.card, width: 48),
+          ],
+        ),
       ),
     );
   }
