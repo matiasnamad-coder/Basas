@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -45,7 +47,6 @@ class _GameScreenState extends State<GameScreen> {
             children: [
               _buildRoundInfo(view),
               if (client.errorMessage != null) _buildErrorBanner(client),
-              _buildScoreboard(view),
               Expanded(child: _buildTableFelt(view)),
               _buildBottomControls(context, client, view),
             ],
@@ -121,61 +122,13 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildScoreboard(PlayerView view) {
-    return SizedBox(
-      height: 90,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        itemCount: view.players.length,
-        itemBuilder: (context, i) {
-          final p = view.players[i];
-          final isTurn = view.phase == 'trickEnd'
-              ? p.id == view.trickWinnerId
-              : i == view.currentTurnIndex;
-          final isDealer = i == view.dealerIndex;
-          return Container(
-            width: 130,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isTurn ? Colors.amber.shade100 : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: isTurn ? Colors.amber : Colors.grey.shade300),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        p.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    if (isDealer) const Icon(Icons.style, size: 14),
-                  ],
-                ),
-                Text('Canto: ${p.bid ?? "-"}  ·  Hechas: ${p.tricksWon}'),
-                Text('Puntos: ${p.totalScore}'),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  /// Mesa de casino: paño verde con marco de madera, adentro va la baza
-  /// que se está jugando.
+  /// Mesa ovalada de casino, con cada jugador en su asiento alrededor
+  /// (nombre, canto, bazas hechas y puntos) y la baza en el medio.
   Widget _buildTableFelt(PlayerView view) {
     return Container(
       margin: const EdgeInsets.all(10),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: const Color(0xFF6B4423), width: 10),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4)),
@@ -186,7 +139,126 @@ class _GameScreenState extends State<GameScreen> {
           colors: [Color(0xFF1E7A46), Color(0xFF0B4027)],
         ),
       ),
-      child: _buildTrickArea(view),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const seatWidth = 96.0;
+          const seatHeight = 84.0;
+          final width = constraints.maxWidth;
+          final height = constraints.maxHeight;
+          final centerX = width / 2;
+          final centerY = height / 2;
+          final radiusX = (width / 2) - (seatWidth / 2) - 6;
+          final radiusY = (height / 2) - (seatHeight / 2) - 6;
+
+          final n = view.players.length;
+          final yourIndex = view.players.indexWhere((p) => p.id == view.yourId);
+
+          return Stack(
+            children: [
+              Center(child: _buildTrickArea(view)),
+              for (var i = 0; i < n; i++) ...[
+                Builder(builder: (context) {
+                  final relative = yourIndex == -1 ? i : (i - yourIndex + n) % n;
+                  // relative == 0 (vos) queda fijo abajo (ángulo 90°) y el
+                  // resto se reparte alrededor en sentido horario.
+                  final angle = (math.pi / 2) + relative * (2 * math.pi / n);
+                  final dx = centerX + radiusX * math.cos(angle) - seatWidth / 2;
+                  final dy = centerY + radiusY * math.sin(angle) - seatHeight / 2;
+                  final p = view.players[i];
+                  final isTurn = view.phase == 'trickEnd'
+                      ? p.id == view.trickWinnerId
+                      : i == view.currentTurnIndex;
+                  final isDealer = i == view.dealerIndex;
+                  final isYou = i == yourIndex;
+                  return Positioned(
+                    left: dx,
+                    top: dy,
+                    width: seatWidth,
+                    child: _buildSeat(p, isTurn: isTurn, isDealer: isDealer, isYou: isYou),
+                  );
+                }),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Un asiento individual: avatar circular (con el ícono de dealer si le
+  /// toca repartir), nombre, canto/hechas, y un "chip" con el puntaje.
+  Widget _buildSeat(
+    PlayerInfo p, {
+    required bool isTurn,
+    required bool isDealer,
+    required bool isYou,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isTurn ? Colors.amberAccent : Colors.white24,
+          width: isTurn ? 2.5 : 1,
+        ),
+        boxShadow: isTurn
+            ? [BoxShadow(color: Colors.amberAccent.withOpacity(0.6), blurRadius: 10)]
+            : null,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: isYou ? Colors.amber.shade700 : Colors.blueGrey.shade600,
+                child: const Icon(Icons.person, color: Colors.white),
+              ),
+              if (isDealer)
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: CircleAvatar(
+                    radius: 9,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.style, size: 11, color: Colors.brown.shade700),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            p.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+          Text(
+            'Canto ${p.bid ?? "-"} · Hizo ${p.tricksWon}',
+            style: const TextStyle(color: Colors.white70, fontSize: 10),
+          ),
+          Container(
+            margin: const EdgeInsets.only(top: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.green.shade900,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '${p.totalScore} pts',
+              style: const TextStyle(
+                color: Colors.amberAccent,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
