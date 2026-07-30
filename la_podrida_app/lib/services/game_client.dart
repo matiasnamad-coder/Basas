@@ -25,16 +25,13 @@ class GameClient extends ChangeNotifier {
   ConnectionStatus status = ConnectionStatus.disconnected;
   String? errorMessage;
 
-  // --- Estado del lobby (antes de arrancar la partida) ---
   List<Map<String, dynamic>> lobbyPlayers = [];
   int minPlayers = 4;
   int maxPlayers = 8;
   bool canStart = false;
 
-  // --- Info al arrancar la partida ---
   Map<String, dynamic>? dealerDraw;
 
-  // --- Estado del juego en curso ---
   PlayerView? view;
   Map<String, dynamic>? roundEndedInfo;
   Map<String, dynamic>? gameEndedInfo;
@@ -53,8 +50,6 @@ class GameClient extends ChangeNotifier {
     await _openSocket(onOpen: () => _send('join', {'name': playerName}));
   }
 
-  /// Se llama al arrancar la app si ya había una sesión guardada, para
-  /// intentar retomarla sin pedir nombre de nuevo.
   Future<bool> tryResumeSavedSession() async {
     final prefs = await SharedPreferences.getInstance();
     final url = prefs.getString('serverUrl');
@@ -99,8 +94,6 @@ class GameClient extends ChangeNotifier {
     _channel = null;
 
     if (isInGame && _sessionId != null && _roomId != null) {
-      // Estábamos en una partida: intentamos reconectar solos antes de
-      // rendirnos y pedirle al usuario que lo haga a mano.
       status = ConnectionStatus.reconnecting;
       notifyListeners();
       _scheduleReconnect();
@@ -112,7 +105,7 @@ class GameClient extends ChangeNotifier {
 
   void _scheduleReconnect() {
     _reconnectAttempts++;
-    final delaySeconds = _reconnectAttempts <= 5 ? 2 : 5; // reintentos rápidos al principio
+    final delaySeconds = _reconnectAttempts <= 5 ? 2 : 5;
     _reconnectTimer = Timer(Duration(seconds: delaySeconds), () async {
       if (_sessionId == null || _roomId == null || _serverUrl == null) return;
       await _openSocket(
@@ -150,7 +143,7 @@ class GameClient extends ChangeNotifier {
         break;
       case 'state':
         view = PlayerView.fromJson(payload!);
-        roundEndedInfo = null; // el nuevo estado reemplaza el resumen anterior
+        roundEndedInfo = null;
         break;
       case 'round-ended':
         roundEndedInfo = payload;
@@ -164,8 +157,6 @@ class GameClient extends ChangeNotifier {
       case 'player-reconnecting':
       case 'player-reconnected':
       case 'player-absent':
-        // Se podría mostrar un banner con esto; por ahora alcanza con
-        // exponerlo si alguna pantalla quiere leerlo del futuro estado.
         break;
     }
 
@@ -184,7 +175,11 @@ class GameClient extends ChangeNotifier {
   }
 
   void startGame() => _send('start-game');
+
   void addComputers(int targetTotal) => _send('add-computers', {'targetTotal': targetTotal});
+
+  void collectTrick() => _send('collect-trick');
+
   void bid(int value) => _send('bid', {'value': value});
 
   void playCard(GameCard card) => _send('play-card', {'card': card.toJson()});
