@@ -5,6 +5,14 @@ export interface PlayValidationResult {
   reason?: string;
 }
 
+/**
+ * Valida si un jugador puede jugar esa carta:
+ * - Si es el primero en jugar la baza, puede jugar cualquier carta.
+ * - Si no es el primero, debe respetar el palo de salida SI TIENE cartas de
+ *   ese palo.
+ * - Si no tiene el palo de salida pero tiene triunfo, está obligado a
+ *   jugar triunfo (no puede tirar cualquier otro palo).
+ */
 export function validatePlay(
   state: GameState,
   playerId: string,
@@ -21,13 +29,29 @@ export function validatePlay(
   }
 
   const leadSuit = state.trickLeaderSuit;
+  const trumpSuit = state.round.trumpSuit;
   const hasLeadSuit = player.hand.some((c) => c.suit === leadSuit);
 
-  if (hasLeadSuit && card.suit !== leadSuit) {
-    return {
-      valid: false,
-      reason: `Debés responder al palo (${leadSuit}) si tenés cartas de ese palo`,
-    };
+  if (hasLeadSuit) {
+    if (card.suit !== leadSuit) {
+      return {
+        valid: false,
+        reason: `Debés responder al palo (${leadSuit}) si tenés cartas de ese palo`,
+      };
+    }
+    return { valid: true };
+  }
+
+  // No tiene el palo de salida: si tiene triunfo, está obligado a "matar"
+  // con triunfo (no puede tirar cualquier otro palo mientras le quede uno).
+  if (trumpSuit !== null && leadSuit !== trumpSuit) {
+    const hasTrump = player.hand.some((c) => c.suit === trumpSuit);
+    if (hasTrump && card.suit !== trumpSuit) {
+      return {
+        valid: false,
+        reason: `No tenés ${leadSuit}: estás obligado a jugar triunfo (${trumpSuit}) si tenés`,
+      };
+    }
   }
 
   return { valid: true };
