@@ -9,6 +9,7 @@ export interface PlayerView {
   dealerIndex: number;
   currentTrick: { playerId: string; card: { suit: string; rank: string } }[];
   trickLeaderSuit: string | null;
+  trickWinnerId: string | null;
   you: { id: string };
   players: {
     id: string;
@@ -31,6 +32,7 @@ export function buildPlayerView(state: GameState, viewerId: string): PlayerView 
     dealerIndex: state.dealerIndex,
     currentTrick: state.currentTrick,
     trickLeaderSuit: state.trickLeaderSuit,
+    trickWinnerId: state.trickWinnerId,
     you: { id: viewerId },
     players: state.players.map((p) => ({
       id: p.id,
@@ -42,4 +44,4 @@ export function buildPlayerView(state: GameState, viewerId: string): PlayerView 
       hand: p.id === viewerId ? p.hand : undefined,
     })),
   };
-}
+    }
