@@ -142,8 +142,8 @@ class _GameScreenState extends State<GameScreen> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          const seatWidth = 96.0;
-          const seatHeight = 84.0;
+          const seatWidth = 74.0;
+          const seatHeight = 58.0;
           final width = constraints.maxWidth;
           final height = constraints.maxHeight;
           final centerX = width / 2;
