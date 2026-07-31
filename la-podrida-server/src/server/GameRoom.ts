@@ -178,7 +178,17 @@ export class GameRoom {
       case 'collect-trick':
         this.collectCurrentTrick();
         break;
+      case 'chat':
+        this.handleChat(sessionId, msg.payload);
+        break;
     }
+  }
+
+  private handleChat(sessionId: string, payload: { text?: string }) {
+    const text = (payload?.text ?? '').trim().slice(0, 200);
+    if (!text) return;
+    const senderName = this.lobby.find((p) => p.sessionId === sessionId)?.name ?? 'Jugador';
+    this.broadcast('chat', { senderId: sessionId, senderName, text });
   }
 
   private handleStartGame(sessionId: string) {
@@ -403,4 +413,4 @@ export class GameRoom {
       this.send(ws, type, payload);
     }
   }
-                             }
+    }
