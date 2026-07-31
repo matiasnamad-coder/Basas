@@ -631,5 +631,81 @@ class _ChatBarState extends State<_ChatBar> {
     _scrollController.dispose();
     super.dispose();
   }
+@override
+  Widget build(BuildContext context) {
+    final messages = widget.client.chatMessages;
 
-  @
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
+
+    return Container(
+      height: 130,
+      decoration: const BoxDecoration(
+        color: Color(0xFF1B1B1B),
+        border: Border(top: BorderSide(color: Colors.black26)),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              itemCount: messages.length,
+              itemBuilder: (context, i) {
+                final m = messages[i];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 1),
+                  child: RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${m.senderName}: ',
+                          style: TextStyle(fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: m.isYou ? Colors.amberAccent : Colors.lightBlueAccent,
+                          ),
+                        ),
+                        TextSpan(
+                          text: m.text,
+                          style: const TextStyle(fontSize: 12, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: const InputDecoration(
+                      hintText: 'Escribí un mensaje…',
+                      hintStyle: TextStyle(color: Colors.white38),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _send(),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send, color: Colors.white),
+                  onPressed: _send,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
