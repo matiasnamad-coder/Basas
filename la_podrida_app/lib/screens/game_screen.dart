@@ -434,3 +434,202 @@ class _GameScreenState extends State<GameScreen> {
           const SizedBox(height: 8),
           SizedBox(
             height: 100,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: hand.map((card) {
+                return PlayingCardWidget(
+                  card: card,
+                  dimmed: !isYourTurn,
+                  onTap: isYourTurn ? () => client.playCard(card) : null,
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _maybeShowDialogs(BuildContext context, GameClient client) {
+    if (client.dealerDraw != null && !_dealerDrawShown) {
+      _dealerDrawShown = true;
+      _showDealerDrawDialog(context, client.dealerDraw!);
+    }
+    if (client.view?.phase == 'roundEnd' && client.roundEndedInfo != null && !_roundEndedShown) {
+      _roundEndedShown = true;
+      _showRoundEndedDialog(context, client);
+    }
+    if (client.view?.phase != 'roundEnd') {
+      _roundEndedShown = false;
+    }
+    if (client.gameEndedInfo != null && !_gameEndedShown) {
+      _gameEndedShown = true;
+      _showGameEndedDialog(context, client.gameEndedInfo!);
+    }
+  }
+
+  void _showDealerDrawDialog(BuildContext context, Map<String, dynamic> draw) {
+    final dealerName = (draw['draw'] as List<dynamic>).cast<Map<String, dynamic>>().firstWhere(
+          (d) => d['seatId'] == draw['dealerSeatId'],
+        )['name'] as String;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('¿Quién reparte?'),
+        content: Text('$dealerName sacó la carta más alta y reparte primero.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Listo')),
+        ],
+      ),
+    );
+  }
+
+  void _showRoundEndedDialog(BuildContext context, GameClient client) {
+    final scores = (client.roundEndedInfo!['scores'] as List<dynamic>).cast<Map<String, dynamic>>();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Fin de la mano'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: scores.map((s) {
+            final hit = s['bid'] == s['tricksWon'];
+            return ListTile(
+              title: Text(s['name'] as String),
+              subtitle: Text('Cantó ${s['bid']}, hizo ${s['tricksWon']}'),
+              trailing: Icon(
+                hit ? Icons.check_circle : Icons.cancel,
+                color: hit ? Colors.green : Colors.red,
+              ),
+            );
+          }).toList(),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              client.advanceRound();
+            },
+            child: const Text('Siguiente mano'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGameEndedDialog(BuildContext context, Map<String, dynamic> gameEnded) {
+    final finalScores = (gameEnded['finalScores'] as List<dynamic>).cast<Map<String, dynamic>>();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('¡Partida terminada!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(finalScores.length, (i) {
+            final s = finalScores[i];
+            return ListTile(
+              leading: CircleAvatar(child: Text('${i + 1}')),
+              title: Text(s['name'] as String),
+              trailing: Text('${s['totalScore']} pts'),
+            );
+          }),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Una carta jugada en la mesa: cuando aparece por primera vez (nueva
+/// key), hace una animación corta de "caída" — entra desde arriba con un
+/// leve rebote y un fade-in. Al reconstruirse con la misma key (por otros
+/// cambios de estado) no vuelve a animarse.
+class _DealtCard extends StatefulWidget {
+  final String playerName;
+  final GameCard card;
+
+  const _DealtCard({super.key, required this.playerName, required this.card});
+
+  @override
+  State<_DealtCard> createState() => _DealtCardState();
+}
+
+class _DealtCardState extends State<_DealtCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _slide = Tween<Offset>(begin: const Offset(0, -0.7), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(widget.playerName, style: const TextStyle(fontSize: 12, color: Colors.white)),
+            const SizedBox(height: 4),
+            PlayingCardWidget(card: widget.card, width: 48),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Franja de chat fija en la parte de abajo de la pantalla, siempre
+/// visible: historial de mensajes arriba y campo para escribir abajo.
+class _ChatBar extends StatefulWidget {
+  final GameClient client;
+
+  const _ChatBar({required this.client});
+
+  @override
+  State<_ChatBar> createState() => _ChatBarState();
+}
+
+class _ChatBarState extends State<_ChatBar> {
+  final _controller = TextEditingController();
+  final _scrollController = ScrollController();
+
+  void _send() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    widget.client.sendChat(text);
+    _controller.clear();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @
