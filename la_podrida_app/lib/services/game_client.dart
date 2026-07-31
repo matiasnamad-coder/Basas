@@ -25,16 +25,21 @@ class GameClient extends ChangeNotifier {
   ConnectionStatus status = ConnectionStatus.disconnected;
   String? errorMessage;
 
+  // --- Estado del lobby (antes de arrancar la partida) ---
   List<Map<String, dynamic>> lobbyPlayers = [];
   int minPlayers = 4;
   int maxPlayers = 8;
   bool canStart = false;
 
+  // --- Info al arrancar la partida ---
   Map<String, dynamic>? dealerDraw;
 
+  // --- Estado del juego en curso ---
   PlayerView? view;
   Map<String, dynamic>? roundEndedInfo;
   Map<String, dynamic>? gameEndedInfo;
+
+  List<ChatMessage> chatMessages = [];
 
   bool get isInGame => view != null;
 
@@ -50,6 +55,8 @@ class GameClient extends ChangeNotifier {
     await _openSocket(onOpen: () => _send('join', {'name': playerName}));
   }
 
+  /// Se llama al arrancar la app si ya había una sesión guardada, para
+  /// intentar retomarla sin pedir nombre de nuevo.
   Future<bool> tryResumeSavedSession() async {
     final prefs = await SharedPreferences.getInstance();
     final url = prefs.getString('serverUrl');
@@ -94,6 +101,8 @@ class GameClient extends ChangeNotifier {
     _channel = null;
 
     if (isInGame && _sessionId != null && _roomId != null) {
+      // Estábamos en una partida: intentamos reconectar solos antes de
+      // rendirnos y pedirle al usuario que lo haga a mano.
       status = ConnectionStatus.reconnecting;
       notifyListeners();
       _scheduleReconnect();
@@ -105,7 +114,7 @@ class GameClient extends ChangeNotifier {
 
   void _scheduleReconnect() {
     _reconnectAttempts++;
-    final delaySeconds = _reconnectAttempts <= 5 ? 2 : 5;
+    final delaySeconds = _reconnectAttempts <= 5 ? 2 : 5; // reintentos rápidos al principio
     _reconnectTimer = Timer(Duration(seconds: delaySeconds), () async {
       if (_sessionId == null || _roomId == null || _serverUrl == null) return;
       await _openSocket(
@@ -143,7 +152,7 @@ class GameClient extends ChangeNotifier {
         break;
       case 'state':
         view = PlayerView.fromJson(payload!);
-        roundEndedInfo = null;
+        roundEndedInfo = null; // el nuevo estado reemplaza el resumen anterior
         break;
       case 'round-ended':
         roundEndedInfo = payload;
@@ -154,9 +163,20 @@ class GameClient extends ChangeNotifier {
       case 'error':
         errorMessage = payload?['message'] as String?;
         break;
+      case 'chat':
+        final senderId = payload?['senderId'] as String?;
+        chatMessages.add(ChatMessage(
+          senderName: payload?['senderName'] as String? ?? '?',
+          text: payload?['text'] as String? ?? '',
+          isYou: senderId != null && senderId == _sessionId,
+        ));
+        if (chatMessages.length > 100) chatMessages.removeAt(0);
+        break;
       case 'player-reconnecting':
       case 'player-reconnected':
       case 'player-absent':
+        // Se podría mostrar un banner con esto; por ahora alcanza con
+        // exponerlo si alguna pantalla quiere leerlo del futuro estado.
         break;
     }
 
@@ -176,9 +196,16 @@ class GameClient extends ChangeNotifier {
 
   void startGame() => _send('start-game');
 
+  /// Completa la sala con jugadores "computadora" hasta llegar a
+  /// [targetTotal] (sin pasarse de maxPlayers). El servidor ignora el
+  /// pedido si la partida ya arrancó.
   void addComputers(int targetTotal) => _send('add-computers', {'targetTotal': targetTotal});
 
+  /// Levanta la baza completa que quedó en la mesa. Cualquier jugador
+  /// puede tocarlo; si nadie lo hace, el servidor la levanta solo.
   void collectTrick() => _send('collect-trick');
+
+  void sendChat(String text) => _send('chat', {'text': text});
 
   void bid(int value) => _send('bid', {'value': value});
 
@@ -196,4 +223,14 @@ class GameClient extends ChangeNotifier {
     _channel?.sink.close();
     super.dispose();
   }
+}
+
+/// Un mensaje de chat entre jugadores de la sala (sin persistencia: solo
+/// vive mientras dura la conexión).
+class ChatMessage {
+  final String senderName;
+  final String text;
+  final bool isYou;
+
+  ChatMessage({required this.senderName, required this.text, required this.isYou});
 }
