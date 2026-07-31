@@ -49,6 +49,7 @@ class _GameScreenState extends State<GameScreen> {
               if (client.errorMessage != null) _buildErrorBanner(client),
               Expanded(child: _buildTableFelt(view)),
               _buildBottomControls(context, client, view),
+              _ChatBar(client: client),
             ],
           ),
         );
@@ -564,3 +565,67 @@ class _DealtCardState extends State<_DealtCard> with SingleTickerProviderStateMi
     );
   }
 }
+
+/// Franja de chat fija en la parte de abajo de la pantalla, siempre
+/// visible: historial de mensajes arriba y campo para escribir abajo.
+class _ChatBar extends StatefulWidget {
+  final GameClient client;
+
+  const _ChatBar({required this.client});
+
+  @override
+  State<_ChatBar> createState() => _ChatBarState();
+}
+
+class _ChatBarState extends State<_ChatBar> {
+  final _controller = TextEditingController();
+  final _scrollController = ScrollController();
+
+  void _send() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    widget.client.sendChat(text);
+    _controller.clear();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final messages = widget.client.chatMessages;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
+
+    return Container(
+      height: 130,
+      decoration: const BoxDecoration(
+        color: Color(0xFF1B1B1B),
+        border: Border(top: BorderSide(color: Colors.black26)),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              itemCount: messages.length,
+              itemBuilder: (context, i) {
+                final m = messages[i];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 1),
+                  child: RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${m.senderName}: ',
+                          style: TextStyle(
+                 
