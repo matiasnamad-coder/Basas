@@ -146,25 +146,20 @@ class _GameScreenState extends State<GameScreen> {
           const seatHeight = 58.0;
           final width = constraints.maxWidth;
           final height = constraints.maxHeight;
-          final centerX = width / 2;
-          final centerY = height / 2;
-          final radiusX = (width / 2) - (seatWidth / 2) - 6;
-          final radiusY = (height / 2) - (seatHeight / 2) - 6;
 
           final n = view.players.length;
           final yourIndex = view.players.indexWhere((p) => p.id == view.yourId);
+          final alignments = _seatAlignments(n);
 
           return Stack(
             children: [
               Center(child: _buildTrickArea(view)),
-              for (var i = 0; i < n; i++) ...[
+              for (var i = 0; i < n; i++)
                 Builder(builder: (context) {
                   final relative = yourIndex == -1 ? i : (i - yourIndex + n) % n;
-                  // relative == 0 (vos) queda fijo abajo (ángulo 90°) y el
-                  // resto se reparte alrededor en sentido horario.
-                  final angle = (math.pi / 2) + relative * (2 * math.pi / n);
-                  final dx = centerX + radiusX * math.cos(angle) - seatWidth / 2;
-                  final dy = centerY + radiusY * math.sin(angle) - seatHeight / 2;
+                  final align = alignments[relative];
+                  final dx = (width - seatWidth) / 2 * (1 + align.x);
+                  final dy = (height - seatHeight) / 2 * (1 + align.y);
                   final p = view.players[i];
                   final isTurn = view.phase == 'trickEnd'
                       ? p.id == view.trickWinnerId
@@ -178,12 +173,56 @@ class _GameScreenState extends State<GameScreen> {
                     child: _buildSeat(p, isTurn: isTurn, isDealer: isDealer, isYou: isYou),
                   );
                 }),
-              ],
             ],
           );
         },
       ),
     );
+  }
+
+  /// Posiciones fijas por cantidad de jugadores (no una elipse pareja),
+  /// para que los asientos de arriba queden bien separados aunque la
+  /// mesa sea angosta. El índice 0 siempre es "vos" (abajo, centro).
+  List<Alignment> _seatAlignments(int n) {
+    switch (n) {
+      case 2:
+        return const [Alignment(0, 0.95), Alignment(0, -0.95)];
+      case 3:
+        return const [
+          Alignment(0, 0.95),
+          Alignment(-0.9, -0.55),
+          Alignment(0.9, -0.55),
+        ];
+      case 4:
+        return const [
+          Alignment(0, 0.95),
+          Alignment(-0.95, 0),
+          Alignment(0, -0.95),
+          Alignment(0.95, 0),
+        ];
+      case 5:
+        return const [
+          Alignment(0, 0.95),
+          Alignment(-0.95, 0.35),
+          Alignment(-0.6, -0.95),
+          Alignment(0.6, -0.95),
+          Alignment(0.95, 0.35),
+        ];
+      case 6:
+        return const [
+          Alignment(0, 0.95),
+          Alignment(-0.95, 0.5),
+          Alignment(-0.95, -0.55),
+          Alignment(0, -0.95),
+          Alignment(0.95, -0.55),
+          Alignment(0.95, 0.5),
+        ];
+      default:
+        return List.generate(n, (i) {
+          final angle = (math.pi / 2) + i * (2 * math.pi / n);
+          return Alignment(math.cos(angle), math.sin(angle) * 0.95);
+        });
+    }
   }
 
   /// Un asiento individual: avatar circular (con el ícono de dealer si le
@@ -286,9 +325,7 @@ class _GameScreenState extends State<GameScreen> {
         }).toList(),
       ),
     );
-  }
-
-  Widget _buildBottomControls(BuildContext context, GameClient client, PlayerView view) {
+  }Widget _buildBottomControls(BuildContext context, GameClient client, PlayerView view) {
     final you = view.you;
     final isYourTurn = view.isYourTurn;
 
@@ -341,13 +378,13 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildHandPreview(PlayerInfo you) {
     final hand = you.hand ?? [];
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: SizedBox(
-        height: 100,
+        height: 72,
         child: ListView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          children: hand.map((card) => PlayingCardWidget(card: card, width: 64)).toList(),
+          children: hand.map((card) => PlayingCardWidget(card: card, width: 48)).toList(),
         ),
       ),
     );
@@ -356,29 +393,29 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildBiddingControls(GameClient client, PlayerView view, bool isYourTurn) {
     if (!isYourTurn) {
       return Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         child: Text('Esperando el canto de ${view.currentTurnPlayer.name}…'),
       );
     }
 
     final max = view.round.cardsPerPlayer;
     return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('¿Cuántas bazas cantás?', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: List.generate(max + 1, (n) {
-              return OutlinedButton(
-                onPressed: () => client.bid(n),
-                child: Text('$n'),
-              );
-            }),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 6,
+        runSpacing: 4,
+        children: List.generate(max + 1, (n) {
+          return SizedBox(
+            width: 40,
+            height: 36,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+              onPressed: () => client.bid(n),
+              child: Text('$n'),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -397,280 +434,3 @@ class _GameScreenState extends State<GameScreen> {
           const SizedBox(height: 8),
           SizedBox(
             height: 100,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: hand.map((card) {
-                return PlayingCardWidget(
-                  card: card,
-                  dimmed: !isYourTurn,
-                  onTap: isYourTurn ? () => client.playCard(card) : null,
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _maybeShowDialogs(BuildContext context, GameClient client) {
-    if (client.dealerDraw != null && !_dealerDrawShown) {
-      _dealerDrawShown = true;
-      _showDealerDrawDialog(context, client.dealerDraw!);
-    }
-    if (client.view?.phase == 'roundEnd' && client.roundEndedInfo != null && !_roundEndedShown) {
-      _roundEndedShown = true;
-      _showRoundEndedDialog(context, client);
-    }
-    if (client.view?.phase != 'roundEnd') {
-      _roundEndedShown = false;
-    }
-    if (client.gameEndedInfo != null && !_gameEndedShown) {
-      _gameEndedShown = true;
-      _showGameEndedDialog(context, client.gameEndedInfo!);
-    }
-  }
-
-  void _showDealerDrawDialog(BuildContext context, Map<String, dynamic> draw) {
-    final dealerName = (draw['draw'] as List<dynamic>).cast<Map<String, dynamic>>().firstWhere(
-          (d) => d['seatId'] == draw['dealerSeatId'],
-        )['name'] as String;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('¿Quién reparte?'),
-        content: Text('$dealerName sacó la carta más alta y reparte primero.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Listo')),
-        ],
-      ),
-    );
-  }
-
-  void _showRoundEndedDialog(BuildContext context, GameClient client) {
-    final scores = (client.roundEndedInfo!['scores'] as List<dynamic>).cast<Map<String, dynamic>>();
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text('Fin de la mano'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: scores.map((s) {
-            final hit = s['bid'] == s['tricksWon'];
-            return ListTile(
-              title: Text(s['name'] as String),
-              subtitle: Text('Cantó ${s['bid']}, hizo ${s['tricksWon']}'),
-              trailing: Icon(
-                hit ? Icons.check_circle : Icons.cancel,
-                color: hit ? Colors.green : Colors.red,
-              ),
-            );
-          }).toList(),
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              client.advanceRound();
-            },
-            child: const Text('Siguiente mano'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showGameEndedDialog(BuildContext context, Map<String, dynamic> gameEnded) {
-    final finalScores = (gameEnded['finalScores'] as List<dynamic>).cast<Map<String, dynamic>>();
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text('¡Partida terminada!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(finalScores.length, (i) {
-            final s = finalScores[i];
-            return ListTile(
-              leading: CircleAvatar(child: Text('${i + 1}')),
-              title: Text(s['name'] as String),
-              trailing: Text('${s['totalScore']} pts'),
-            );
-          }),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-            child: const Text('Salir'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Una carta jugada en la mesa: cuando aparece por primera vez (nueva
-/// key), hace una animación corta de "caída" — entra desde arriba con un
-/// leve rebote y un fade-in. Al reconstruirse con la misma key (por otros
-/// cambios de estado) no vuelve a animarse.
-class _DealtCard extends StatefulWidget {
-  final String playerName;
-  final GameCard card;
-
-  const _DealtCard({super.key, required this.playerName, required this.card});
-
-  @override
-  State<_DealtCard> createState() => _DealtCardState();
-}
-
-class _DealtCardState extends State<_DealtCard> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _slide = Tween<Offset>(begin: const Offset(0, -0.7), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(
-        position: _slide,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(widget.playerName, style: const TextStyle(fontSize: 12, color: Colors.white)),
-            const SizedBox(height: 4),
-            PlayingCardWidget(card: widget.card, width: 48),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Franja de chat fija en la parte de abajo de la pantalla, siempre
-/// visible: historial de mensajes arriba y campo para escribir abajo.
-class _ChatBar extends StatefulWidget {
-  final GameClient client;
-
-  const _ChatBar({required this.client});
-
-  @override
-  State<_ChatBar> createState() => _ChatBarState();
-}
-
-class _ChatBarState extends State<_ChatBar> {
-  final _controller = TextEditingController();
-  final _scrollController = ScrollController();
-
-  void _send() {
-    final text = _controller.text.trim();
-    if (text.isEmpty) return;
-    widget.client.sendChat(text);
-    _controller.clear();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final messages = widget.client.chatMessages;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      }
-    });
-
-    return Container(
-      height: 130,
-      decoration: const BoxDecoration(
-        color: Color(0xFF1B1B1B),
-        border: Border(top: BorderSide(color: Colors.black26)),
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              itemCount: messages.length,
-              itemBuilder: (context, i) {
-                final m = messages[i];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 1),
-                  child: RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: '${m.senderName}: ',
-                          style: TextStyle(fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: m.isYou ? Colors.amberAccent : Colors.lightBlueAccent,
-                          ),
-                        ),
-                        TextSpan(
-                          text: m.text,
-                          style: const TextStyle(fontSize: 12, color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: const InputDecoration(
-                      hintText: 'Escribí un mensaje…',
-                      hintStyle: TextStyle(color: Colors.white38),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => _send(),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Colors.white),
-                  onPressed: _send,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-                 
