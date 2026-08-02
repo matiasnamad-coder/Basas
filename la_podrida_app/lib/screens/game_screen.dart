@@ -123,38 +123,52 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// Mesa ovalada de casino, con cada jugador en su asiento alrededor
-  /// (nombre, bazas hechas y puntos), una pila de fichas flotando sobre
-  /// el paño representando lo que cantó, y la baza actual en el medio.
+/// Área completa de la mesa: fondo oscuro, el paño ovalado más chico
+  /// y centrado, y los jugadores flotando AFUERA del paño (sobre el
+  /// fondo oscuro), como en una mesa de póker real.
   Widget _buildTableFelt(PlayerView view) {
-    return Container(
-      margin: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFF6B4423), width: 10),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-        gradient: const RadialGradient(
-          center: Alignment.center,
-          radius: 1.1,
-          colors: [Color(0xFF1E7A46), Color(0xFF0B4027)],
-        ),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          const seatWidth = 74.0;
-          const seatHeight = 58.0;
-          final width = constraints.maxWidth;
-          final height = constraints.maxHeight;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const seatWidth = 74.0;
+        const seatHeight = 58.0;
+        const feltInsetH = 46.0;
+        const feltInsetV = 42.0;
+        final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
 
-          final n = view.players.length;
-          final yourIndex = view.players.indexWhere((p) => p.id == view.yourId);
-          final alignments = _seatAlignments(n);
+        final n = view.players.length;
+        final yourIndex = view.players.indexWhere((p) => p.id == view.yourId);
+        final alignments = _seatAlignments(n);
 
-          return Stack(
+        return Container(
+          margin: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: const Color(0xFF15120F),
+          ),
+          child: Stack(
             children: [
-              Center(child: _buildTrickArea(view)),
+              Positioned(
+                left: feltInsetH,
+                right: feltInsetH,
+                top: feltInsetV,
+                bottom: feltInsetV,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(200),
+                    border: Border.all(color: const Color(0xFF6B4423), width: 10),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4)),
+                    ],
+                    gradient: const RadialGradient(
+                      center: Alignment.center,
+                      radius: 1.1,
+                      colors: [Color(0xFF1E7A46), Color(0xFF0B4027)],
+                    ),
+                  ),
+                  child: Center(child: _buildTrickArea(view)),
+                ),
+              ),
               for (var i = 0; i < n; i++)
                 Builder(builder: (context) {
                   final relative = yourIndex == -1 ? i : (i - yourIndex + n) % n;
@@ -183,7 +197,7 @@ class _GameScreenState extends State<GameScreen> {
                     final seatCenterY = (height - seatHeight) / 2 * (1 + align.y) + seatHeight / 2;
                     final cx = width / 2;
                     final cy = height / 2;
-                    const t = 0.5; // 0 = centro de la mesa, 1 = asiento
+                    const t = 0.62;
                     final chipX = cx + (seatCenterX - cx) * t;
                     final chipY = cy + (seatCenterY - cy) * t;
                     return Positioned(
@@ -193,9 +207,9 @@ class _GameScreenState extends State<GameScreen> {
                     );
                   }),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
