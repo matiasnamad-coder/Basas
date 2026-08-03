@@ -276,9 +276,6 @@ class _GameScreenState extends State<GameScreen> {
           color: isTurn ? Colors.amberAccent : Colors.white24,
           width: isTurn ? 2.5 : 1,
         ),
-        boxShadow: isTurn
-            ? [BoxShadow(color: Colors.amberAccent.withOpacity(0.6), blurRadius: 10)]
-            : null,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -679,23 +676,16 @@ class _DealtCardState extends State<_DealtCard> with SingleTickerProviderStateMi
   }
 
   @override
+@override
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _fade,
       child: SlideTransition(
         position: _slide,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(widget.playerName, style: const TextStyle(fontSize: 12, color: Colors.white)),
-            const SizedBox(height: 4),
-            PlayingCardWidget(card: widget.card, width: 48),
-          ],
-        ),
+        child: PlayingCardWidget(card: widget.card, width: 36),
       ),
     );
   }
-}
 
 /// Franja de chat fija en la parte de abajo de la pantalla, siempre
 /// visible: historial de mensajes arriba y campo para escribir abajo.
