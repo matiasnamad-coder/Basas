@@ -675,7 +675,6 @@ class _DealtCardState extends State<_DealtCard> with SingleTickerProviderStateMi
     super.dispose();
   }
 
-  @override
 @override
   Widget build(BuildContext context) {
     return FadeTransition(
@@ -686,6 +685,7 @@ class _DealtCardState extends State<_DealtCard> with SingleTickerProviderStateMi
       ),
     );
   }
+}
 
 /// Franja de chat fija en la parte de abajo de la pantalla, siempre
 /// visible: historial de mensajes arriba y campo para escribir abajo.
