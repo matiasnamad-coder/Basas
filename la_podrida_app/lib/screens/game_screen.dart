@@ -129,10 +129,10 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildTableFelt(PlayerView view) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const seatWidth = 74.0;
-        const seatHeight = 58.0;
-        const feltInsetH = 46.0;
-        const feltInsetV = 42.0;
+        const seatWidth = 78.0;
+        const seatHeight = 92.0;
+        const feltInsetH = 30.0;
+        const feltInsetV = 34.0;
         final width = constraints.maxWidth;
         final height = constraints.maxHeight;
 
@@ -141,12 +141,13 @@ class _GameScreenState extends State<GameScreen> {
         final alignments = _seatAlignments(n);
 
         return Container(
-          margin: const EdgeInsets.all(10),
+          margin: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             color: const Color(0xFF15120F),
           ),
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               Positioned(
                 left: feltInsetH,
