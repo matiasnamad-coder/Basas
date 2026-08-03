@@ -41,6 +41,11 @@ class _GameScreenState extends State<GameScreen> {
                   padding: EdgeInsets.symmetric(horizontal: 12),
                   child: Center(child: Text('Reconectando…')),
                 ),
+              IconButton(
+                icon: const Icon(Icons.exit_to_app),
+                tooltip: 'Volver a la sala',
+                onPressed: () => _confirmLeave(context),
+              ),
             ],
           ),
           body: Column(
@@ -560,7 +565,29 @@ class _GameScreenState extends State<GameScreen> {
       _showGameEndedDialog(context, client.gameEndedInfo!);
     }
   }
-
+void _confirmLeave(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('¿Salir de la partida?'),
+        content: const Text('Vas a volver a la sala de espera.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
+}
+  
   void _showDealerDrawDialog(BuildContext context, Map<String, dynamic> draw) {
     final dealerName = (draw['draw'] as List<dynamic>).cast<Map<String, dynamic>>().firstWhere(
           (d) => d['seatId'] == draw['dealerSeatId'],
