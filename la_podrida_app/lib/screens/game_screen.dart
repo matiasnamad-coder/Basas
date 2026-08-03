@@ -136,8 +136,8 @@ class _GameScreenState extends State<GameScreen> {
       builder: (context, constraints) {
         const seatWidth = 78.0;
         const seatHeight = 92.0;
-        const feltInsetH = 30.0;
-        const feltInsetV = 34.0;
+        const feltInsetH = 8.0;
+        const feltInsetV = 10.0;
         final width = constraints.maxWidth;
         final height = constraints.maxHeight;
 
@@ -146,11 +146,7 @@ class _GameScreenState extends State<GameScreen> {
         final alignments = _seatAlignments(n);
 
         return Container(
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: const Color(0xFF15120F),
-          ),
+          margin: EdgeInsets.zero,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
